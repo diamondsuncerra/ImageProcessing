@@ -1,0 +1,305 @@
+TEMA2 : arbori cuaternari.
+   Proiectul prezinta 3 modalitati de prelucare a imaginilor.
+   Cerinta 1 se refera la compresia unei imagini intr-un 
+fisier ce contine informatii aferente imaginii.
+   Cerinta 2 se refera la procesul invers compresiei de mai 
+sus, recreearea pozei pe baza fisierului realizat la 
+cerinta 1.
+   Cerinta 3 consta in oglindirea unei imagini utilizand
+algoritmi implementati la cerintele 1 si 2.
+
+   Pentru a studia implementarea temei se considera urmatoarele
+puncte cheie:
+I. STRUCTURILE FOLOSITE
+II. MAIN
+III. IMPLEMENTARE CERINTA 1
+IV. IMPLEMENTARE CERINTA2
+V. IMPLEMENTARE CERINTA3
+VI. FISIERELE .H
+VII. MAKEFILE
+
+		I. STRUCTURILE FOLOSITE
+
+   In implementarea temei se folosesc urmatoarele structuri:
+
+1. Structura utilizata pentru vectorul din fisierul rezultat in urma cerintei 1.
+
+ typedef struct QuadtreeNode { //arr node
+  unsigned char blue, green, red;
+  uint32_t area;
+  int32_t top_left, top_right;
+  int32_t bottom_left, bottom_right;
+}__attribute__((packed)) QuadtreeNode;
+
+2. Structura utilizata pentru a stoca culorile pozei intr-o variabila.
+
+typedef struct Pixel {
+  unsigned char  blue;
+  unsigned char  green;
+  unsigned char  red;
+} Pixel;
+
+
+3. Structura utilizata in arborele cuaternar.
+  Parent este imaginea parinte din care face parte,
+copii topLeft, topRight, bottomRight, bottomLeft
+sunt cele 4 imagini din care este compusa subimaginea
+curenta. 
+Pixel colour este culoarea medie a imaginii, area
+este aria subimaginii curente.
+
+typedef struct QNode{ // tree node
+  Pixel colour;
+  uint32_t area;
+  struct QNode *parent;
+  struct QNode *topLeft;
+  struct QNode *topRight;
+  struct QNode *bottomLeft;
+  struct QNode *bottomRight;
+
+} __attribute__((packed)) QNode;
+
+4. Structura utilizata pentru a realiza impartirea imaginii
+in 4 subimagini.
+
+typedef struct Point{
+  int x;
+  int y;
+} __attribute__((packed)) Point;
+
+5. Structura utilizata pentru a stoca nodurile arborelui
+intr-o coada si pentru implementarea cozii
+
+typedef struct QueueNode { //queue node
+    QNode *data; //quad tree node
+    struct QueueNode *next;
+    struct QueueNode *prev;
+} QueueNode_t;
+
+6. Structura utilizata pentru a implementa coada
+
+typedef struct queue {
+    QueueNode_t *head;
+    QueueNode_t *tail;
+    size_t len;
+} queue_t;
+
+
+		II. MAIN
+  Fisierul main este numit quadtree.c. Se citeste in variabila
+buffer comanda pe care o efectueaza programul.
+-c -> indica cerinta 1 compress
+-d -> indica cerinta 2 decompress
+-m -> indica cerinta 3 mirror
+
+In functie de parametrul ales se citesc urmatoarele argumente in 
+linia de comanda:
+
+-c factor inputFile outputFile
+
+factor reprezinta un numar ce indica nivelul de compresie al imaginii,
+cat de explicit va fi fisierul de compresie.
+
+inputFile este poza in format PPM, mai concret P6
+
+outputFile este un fisier binar ce contine : numarul de culori din poza,
+numarul de noduri ale arborelui creat pe baza pozei, vectorul creat pe 
+baza arborelui. 
+
+-d inputFile outputFile
+
+inputFile este fisierul binar de tipul de mai sus
+outputFile este o poza de tip PPM, P6
+
+-m type factor inputFile outputFile
+
+type poate luat doua valori: h -> oglindire dupa orizontala
+v -> oglindire dupa verticala
+
+factor are intelesul de la -c 
+inputFile si outputFile sunt  poze de tip PPM
+
+Se copiaza numele fisierelor si se apeleaza functiile corespunzatoare
+cerintelor.
+
+		III. IMPLEMENTARE CERINTA 1
+                     (compress.h)
+
+Functia pentru implementarea cerintei 1 se afla in fisierul header
+compress.h cu antentul:
+
+void cerinta1 (char * name1, char * name2, unsigned long prag, int mirrorType)
+name1 -> numele fisierului de input
+name2 -> numele fisierului de output
+prag -> factorul descris la sectiunea anterioara
+mirrorType -> parametru luat pentru usurinta implementarii cerintei 3
+ Pentru ca nu dorim oglindire la cerinta 1 vom considera inca din apelul 
+functiei din main mirrorType = 0
+ Se deschid fisierele cu numele parametrii name1, name2. Se citesc tipul (P6),
+width, height, maxColour. Se aloca spatiu pentru Pixel **grid, matricea pentru
+pixelii pozei. Se initializeaza nodul QNode *root cu functia initQNode. Acesta
+va fi radacina arborelui cuaternar.
+  Nodurile arborelui cuaternar sunt descrise in sectiunea STRUCTURI.
+  Functia void QTree(QNode * root,Pixel **grid, unsigned long size, Point A,
+ unsigned long prag, int mirrorType) este cea care creeaza arborele recursiv.
+ In cadrul acestei functii se calculeaza pixelul mediu, adica culoarea medie 
+a blocului curent cu functia
+Pixel computeMediumColour(Pixel **grid, unsigned long size, Point A). 
+In functie de pixelul mediu, se calculeaza valoarea variabilei mean a blocului
+cu ajutorul functiei double computeMean(Pixel **grid,unsigned long size, 
+Point A, Pixel mediumPixel).
+  Variabila Point A este o variabila de tip Point ce reprezinta coordonatele
+in matricea grid a coltului din stanga sus a imagini. Cu ajutorul acesteia si
+a lungimii blocului curent se pot accesa toate elementele din subimagine.
+Pentru a implementa recursiv se folosesc formule evidente pentru reapelarea
+functiei QTree.      
+
+Point a1,a2,a3,a4;
+     a1 = A;
+     a2.x = a1.x + size/2;
+     a2.y = a1.y;
+     a3.x = a1.x + size/2;
+     a3.y = a1.y + size/2;
+     a4.x = a1.x;
+     a4.y = a1.y + size/2;
+
+Dupa calcularea valorii mean, daca este nevoie de segmentarea suplimentara
+a imaginii in alte 4 subimagini, se introduc 4 noduri copii ai nodului
+curent cu ajutorul functiei :insert4QNode(root). La cerinta 1 se reapelaza
+Qtree in ordinea elementelor cu punctele corespunzatoare: 
+
+       QTree(root -> topLeft, grid, size/2, a1, prag, mirrorType);
+       QTree(root -> topRight, grid, size/2, a2, prag, mirrorType);
+       QTree(root -> bottomRight, grid, size/2, a3, prag, mirrorType);
+       QTree(root -> bottomLeft, grid, size/2, a4, prag, mirrorType);
+Cazul in care mirrorType != 0 va fi prezentat la cerinta 3.
+  Dupa crearea arborelui cuaternar, aflam numarul de frunze (culori) si noduri
+cu functiile recursive : 
+
+  numberLeaves = countLeaves(root);
+  numberNodes = countNodes(root);
+
+  Aceste valori sunt scrise in fisierul de output.
+  Pentru a pune nodurile in ordine pe nivele in vectorul de tip QuadtreeNode *arr
+se utilizeaza cozile, ale caror functii specifice sunt detaliate in fisierul 
+queueFunctions.h 
+
+QueueNode_t *initQueueNode(QNode *data)
+-> initializeaza un nod de tip QueueNode_t (nod din coada)
+pe baza data, nod din arbore.
+
+queue_t *initQueue()
+-> initializeaza coada 
+
+void enqueue(queue_t *queue, QNode *data)
+-> adauga elementul data in coada
+
+QNode *dequeue(queue_t *queue) 
+-> scoate elementul din varful cozii
+
+void destroyQueue( queue_t *queue)  
+-> elibereaza memoria pentru coada
+
+ Variabila queue_index numeroteaza randul elementelor in coada pentru a putea
+insera in elementul parinte din vector, unde regasim copii in acelasi vector.
+Daca elementul din arbore nu e frunza, ii bagam copii in coada, altfel punem
+coordonatele copiilor ca fiind -1. Pentru cazul not leaf se introduc si 
+coordonatele copiilor in vector. Celelalte campuri sunt completate astfel : 
+
+    nod.area = root->area;
+    nod.blue = root->colour.blue;
+    nod.green = root->colour.green;
+    nod.red = root->colour.red;
+unde nod este nodul pe care il bagam in vector.
+Se scriu elementele vectorului in fisier si se elibereaza memoria:
+  free(arr);
+  destroyQueue(queue);
+  destroyQTree(root); -> distruge arborele
+  destroyGrid(grid, width); -> elibereaza memoria pentru matrice 
+  free(type);
+
+		
+		IV. IMPLEMENTARE CERINTA 2
+                    (decompress.h)
+
+  Se implementeaza cu ajutorul functiei : 
+     void cerinta2(char* name1, char *name2)
+
+name1 -> numele fisierului de input fisier binar
+name2 -> numele fisierului de output PPM, P6
+  Se citesc din fisierul de compresie numarul de frunze si numarul
+de noduri. Se scrie "P6" in fisierul de output. Se citeste vectorul.
+Lungimea matricei grid pe care urmeaza sa o cream se acceseaza ca fiind
+radical din arr[0].area ( arr[0] descrie imaginea mare ). Se printeaza
+lungimea de doua ori deoarece poza e patrat. 
+  Refacem arborele cuaternar cu o noua functie 
+void createQTree(QNode *root, QuadtreeNode *arr, unsigned long index)
+care recreeaza arborele cuaternar pe baza vectorului arr. Utilizam faptul
+ca elementele arr contin indicii copiilor si se reapeleaza pentru copii
+nodului curent la indexul retinut in vector. Dupa creearea arborelui
+cuaternar, vom crea matricea grid cu ajutorul functiei 
+void CreateGrid( Pixel **grid, QNode *root, unsigned long size, Point A).
+Implementarea este simpla. Daca nodul curent este frunza scriem la indicii
+indicati de Point A si size in grid culoarea medie a nodului. Reapelam 
+functia daca nodul nu e frunza, recursiv pentru cei 4 copii . Dupa crearea
+matricei grid, scriem pixelii in poza finala si eliberam memoria alocata.
+
+
+
+		V. IMPLEMENTARE CERINTA 3
+                     (mirror.h)
+  Se implementeaza cu ajutorul functiei : 
+void cerinta3(char* name1, char *name2, char type, unsigned long factor)
+name1-> fisier input PPM
+name2-> fisie output PPM
+Se deschid fisierele si se utilizeaza un fisier auxiliar compresFile 
+binar in care facem compresia fisierului de input, dupa care creeam poza.
+Variabila char type dicteaza creerea aborelui cuaternar pentru a oglindi
+poza fie orizontal fie vertical. Se reapeleaza deci cerinta1 si cerinta2,
+singura diferenta fiind in cerinta 1.
+Pentru oglindire orizontala folosim 
+
+       QTree(root -> topRight, grid, size/2, a1, prag, mirrorType);
+       QTree(root -> topLeft, grid, size/2, a2, prag, mirrorType);
+       QTree(root -> bottomLeft, grid, size/2, a3, prag, mirrorType);
+       QTree(root -> bottomRight, grid, size/2, a4, prag, mirrorType);
+
+iar pentru verticala folosim:
+
+       QTree(root -> bottomLeft, grid, size/2, a1, prag, mirrorType);
+       QTree(root -> bottomRight, grid, size/2, a2, prag, mirrorType);
+       QTree(root -> topRight, grid, size/2, a3, prag, mirrorType);
+       QTree(root -> topLeft, grid, size/2, a4, prag, mirrorType);
+       QTree(root -> bottomLeft, grid, size/2, a1, prag, mirrorType);
+       QTree(root -> bottomRight, grid, size/2, a2, prag, mirrorType);
+       QTree(root -> topRight, grid, size/2, a3, prag, mirrorType);
+       QTree(root -> topLeft, grid, size/2, a4, prag, mirrorType);
+
+Astfel se face switch in retinerea coordonatelor. Recreerea imaginilor
+este identica, deci se va recreea imaginea oglindindita.
+
+		VII. FISIERELE .H
+
+Fisierele folosite sunt:
+queueFunctions.h
+mirror.h
+compress.h
+decompress.h
+structs.h
+
+		VIII. MAKEFILE
+  Makefileul folosit este urmatorul. Se creeaza executabilul
+quadtree.
+
+CC = gcc
+CFLAGS = -g -Wall -lm -std=c99
+
+build: quadtree.c compress.h structs.h decompress.h
+        $(CC) -o  quadtree quadtree.c  $(CFLAGS)
+clean:
+        rm -f quadtree
+
+
+Tema realizata cu mult efort de Soare Cerasela-Nicola, 313CC.
+Facultatea de Automatica si Calculatoare.
+UPB.
