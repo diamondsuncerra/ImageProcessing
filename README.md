@@ -1,4 +1,4 @@
-# Image Processing Project
+# Image Processing
 
 This project demonstrates three ways of image processing using C. Each mode focuses on different aspects
 of image manipulation.
